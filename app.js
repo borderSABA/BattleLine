@@ -1,5 +1,5 @@
 'use strict';
-const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_VERSION='v0.4.1';
+const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_VERSION='v0.4.2';
 const WORKER_ORIGIN=String(window.BATTLE_LINE_WORKER_ORIGIN||'').replace(/\/$/,'');
 const COMMON_PLAYER_NAME_KEY='boardgamePlayerName', ROOM_IDS=['room1','room2','room3','room4'];
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
@@ -136,11 +136,11 @@ $('#leaveBtn').onclick=leaveCurrentRoom;$('#startBtn').onclick=()=>send('start')
 for(const [id,key] of [['tactics','tactics'],['claimRule','claimRule'],['first','first'],['cpu','cpuLevel']])$('#'+id).onchange=e=>send('settings',{key,value:id==='tactics'?e.target.value==='true':id==='cpu'?+e.target.value:e.target.value});
 $('#troopDeck').onclick=()=>{if(state?.phase==='draw')send('draw',{deck:'troop'})};$('#tacticDeck').onclick=()=>{if(state?.phase==='draw')send('draw',{deck:'tactic'})};$('#historyBtn').onclick=()=>modal('<h2>ログ</h2>'+(state.history||[]).slice().reverse().map(x=>`<div class="log">${esc(x)}</div>`).join(''));
 $('#rulesBtn').onclick=()=>modal(`<div class="rules"><h2>ルール・用語</h2>
+<h3>役の強さ</h3><ol class="formation-list"><li><b>ウェッジ</b>：同じ色で連続した数字。</li><li><b>ファランクス</b>：同じ数字。</li><li><b>バタリオン</b>：同じ色。</li><li><b>スカーミッシャー</b>：連続した数字。</li><li><b>ホスト</b>：上記以外。</li></ol><ul><li>上から順に強い役です。</li><li>同じ役なら数字合計が大きい側が上。</li><li>同じ役・同じ合計なら先に完成した側が上。</li></ul>
+<h3>戦術カード詳細</h3><ul><li><b>リーダー</b>：色・数字を自由に扱うワイルド。</li><li><b>援軍騎兵</b>：数字8・色自由。</li><li><b>盾兵</b>：数字1～3・色自由。</li><li><b>霧</b>：その旗は役を無視し、数字合計だけで比較。</li><li><b>泥濘</b>：その旗を3枚編成から4枚編成へ変更。</li><li><b>偵察</b>：カードを追加で確認・交換する戦術。</li><li><b>再配置</b>：自分の配置済みカード1枚を別の戦線へ移動。</li><li><b>脱走</b>：相手の配置済みカード1枚を捨てる。</li><li><b>裏切り</b>：相手の部隊カード1枚を自分側へ移す。</li><li>戦術カードは、自分の使用枚数が相手より最大1枚多いところまで使用可能。</li></ul>
 <h3>勝利条件</h3><ul><li>中央の9本のフラッグを争います。</li><li><b>隣接する3本</b>を連続で獲得すると勝利。</li><li>または場所を問わず<b>5本</b>獲得すると勝利。</li></ul>
 <h3>ターン</h3><ul><li>カードを1枚プレイ。</li><li>部隊山札または戦術山札から1枚ドロー。</li><li>相手の手番へ移ります。</li><li>獲得可能なフラッグは旗を押して宣言します。</li></ul>
-<h3>フォーメーション</h3><ul><li><b>ウェッジ</b>：同じ色で連続した数字。</li><li><b>ファランクス</b>：同じ数字。</li><li><b>バタリオン</b>：同じ色。</li><li><b>スカーミッシャー</b>：連続した数字。</li><li><b>ホスト</b>：上記以外。</li><li>同じ役なら数字合計が大きい側が上。</li><li>同じ役・同じ合計なら先に完成した側が上。</li></ul>
 <h3>フラッグ獲得</h3><ul><li>双方完成時はフォーメーションを比較します。</li><li>相手が未完成でも、公開情報上どう完成しても逆転できない場合は獲得宣言できます。</li><li>相手の手札内容は判定材料にしません。</li></ul>
-<h3>戦術カード</h3><ul><li><b>リーダー</b>：色・数字を自由に扱うワイルド。</li><li><b>援軍騎兵</b>：数字8・色自由。</li><li><b>盾兵</b>：数字1～3・色自由。</li><li><b>霧</b>：その旗は役を無視して合計値で比較。</li><li><b>泥濘</b>：その旗を4枚編成に変更。</li><li><b>偵察</b>：カードを追加で確認・交換する戦術。</li><li><b>再配置</b>：自分の配置済みカードを別の戦線へ移動。</li><li><b>脱走</b>：相手の配置済みカードを捨てる。</li><li><b>裏切り</b>：相手の部隊カードを自分側へ移す。</li><li>自分の戦術カード使用枚数は、相手より最大1枚多いところまで。</li></ul>
 <h3>用語</h3><ul><li><b>部隊カード</b>：6色×1～10の通常カード。</li><li><b>戦線</b>：各フラッグを挟んだ双方のカード配置場所。</li><li><b>獲得宣言</b>：条件を満たしたフラッグを自分のものとして確定する操作。</li></ul></div>`);
 function leaveCurrentRoom(){if(!currentRoomId)return; if(!confirm('ROOMから退室しますか？'))return; send('leave'); const room=currentRoomId; currentRoomId=null; state=null; selectedCard=null; clearTimeout(reconnectTimer); localStorage.removeItem(`${GAME_ID}-online-room`);localStorage.removeItem(`${GAME_ID}-online-active-name`);localStorage.removeItem(tokenKey(room));try{ws?.close()}catch{};ws=null;screen('#title');setTimeout(loadRooms,250)}
 $('#gameLeaveBtn').onclick=leaveCurrentRoom;$('#reopenResultBtn').onclick=()=>{resultDismissed=false;showResult(true)};$('#returnLobbyBtn').onclick=()=>send('backLobby');$('#modalClose').onclick=closeModal;
