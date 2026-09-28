@@ -1,9 +1,9 @@
 'use strict';
-const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_VERSION='v0.1';
+const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_VERSION='v0.3.1';
 const WORKER_ORIGIN=String(window.BATTLE_LINE_WORKER_ORIGIN||'').replace(/\/$/,'');
 const COMMON_PLAYER_NAME_KEY='boardgamePlayerName', ROOM_IDS=['room1','room2','room3','room4'];
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-let ws=null,currentRoomId=null,currentPlayerName='',state=null,selectedCard=null,tacticTarget=null,reconnectTimer=null,commonNameSavedForSession=null,actionSeq=0;
+let ws=null,currentRoomId=null,currentPlayerName='',state=null,selectedCard=null,tacticTarget=null,resultDismissed=false,reconnectTimer=null,commonNameSavedForSession=null,actionSeq=0;
 function commonSavedName(){return String(localStorage.getItem(COMMON_PLAYER_NAME_KEY)||'').trim().slice(0,32)}
 function saveCommonNameOnActualStart(n){n=String(n||'').trim().slice(0,32);if(n)localStorage.setItem(COMMON_PLAYER_NAME_KEY,n)}
 function tokenKey(r){return `${GAME_ID}-online-token-${r}`}; function getToken(r){let t=localStorage.getItem(tokenKey(r));if(!t){t=crypto.randomUUID().replace(/-/g,'');localStorage.setItem(tokenKey(r),t)}return t}
@@ -62,8 +62,9 @@ function renderBattle(){
  }
 }
 function boardCardHtml(c,fi,seat){
- const raw=cardHtml(c).replace('class="card ',`class="card board-card `).replace('data-card="',`data-board-fi="${fi}" data-board-seat="${seat}" data-board-card="`);
- return raw;
+ const attrs=`data-board-fi="${fi}" data-board-seat="${seat}" data-board-card="${esc(c.id)}"`;
+ if(c.kind==='troop')return `<div class="card board-card ${c.color}" ${attrs}><span>${colorMark(c.color)}</span><b>${c.value}</b></div>`;
+ return `<div class="card board-card tactic" ${attrs} title="${esc(c.text||'')}"><small>戦術</small><b>${esc(c.name)}</b></div>`;
 }
 function slots(f,n){const max=f.mud?4:3;return Array.from({length:Math.max(0,max-n)},()=>'<div class="slot"></div>').join('')}
 function selectCard(id){
