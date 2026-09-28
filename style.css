@@ -164,3 +164,15 @@ html,body{height:100%;overflow:hidden}#game.screen.active{height:100dvh;overflow
  .formation .card.tactic{height:17px!important;min-height:17px!important;max-height:17px!important;padding:0!important}
  .formation .card.tactic b{max-height:15px!important;font-size:7px!important}
 }
+
+/* v0.5.0: reserve five card rows per side; unused rows stay invisible */
+.reserve-slot{visibility:hidden!important;border-color:transparent!important;pointer-events:none!important}
+.formation{box-sizing:border-box}
+@media(min-width:641px){
+ .formation{min-height:207px!important;height:207px!important;justify-content:flex-start!important}
+ .lane{grid-template-rows:207px 62px 207px!important;min-height:488px!important}
+}
+@media(max-width:640px){
+ .formation{height:89px!important;min-height:89px!important;max-height:89px!important;justify-content:flex-start!important}
+ .lane{grid-template-rows:89px 27px 89px!important;height:207px!important;min-height:207px!important}
+}

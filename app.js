@@ -1,5 +1,5 @@
 'use strict';
-const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_VERSION='v0.4.9';
+const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_VERSION='v0.5.0';
 const WORKER_ORIGIN=String(window.BATTLE_LINE_WORKER_ORIGIN||'').replace(/\/$/,'');
 const COMMON_PLAYER_NAME_KEY='boardgamePlayerName', ROOM_IDS=['room1','room2','room3','room4'];
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
@@ -77,7 +77,13 @@ function boardCardHtml(c,fi,seat){
  if(c.kind==='troop')return `<div class="card board-card ${c.color}" ${attrs}><span>${colorMark(c.color)}</span><b>${c.value}</b></div>`;
  return `<div class="card board-card tactic" ${attrs} title="${esc(c.text||'')}"><small>戦術</small><b>${esc(c.name)}</b></div>`;
 }
-function slots(f,n){const max=f.mud?4:3;return Array.from({length:Math.max(0,max-n)},()=>'<div class="slot"></div>').join('')}
+function slots(f,n){
+ const visibleMax=f.mud?4:3;
+ const visible=Math.max(0,visibleMax-n);
+ const reserve=Math.max(0,5-Math.max(n,visibleMax));
+ return Array.from({length:visible},()=>'<div class="slot"></div>').join('')+
+        Array.from({length:reserve},()=>'<div class="slot reserve-slot" aria-hidden="true"></div>').join('');
+}
 function selectCard(id){
  if(state.turnPlayerId!==me()?.id||state.phase!=='play'){selectedCard=null;tacticTarget=null;return toast('今はカードを出せません')}
  tacticTarget=null;selectedCard=selectedCard===id?null:id;renderGame()
