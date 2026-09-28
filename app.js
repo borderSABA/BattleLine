@@ -1,5 +1,5 @@
 'use strict';
-const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_VERSION='v0.4.3';
+const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_VERSION='v0.4.5';
 const WORKER_ORIGIN=String(window.BATTLE_LINE_WORKER_ORIGIN||'').replace(/\/$/,'');
 const COMMON_PLAYER_NAME_KEY='boardgamePlayerName', ROOM_IDS=['room1','room2','room3','room4'];
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
@@ -53,16 +53,16 @@ function turnGuideHtml(myTurn){
 }
 function renderBattle(){
  const m=me();
- $('#battlefield').innerHTML=state.flags.map((f,i)=>{
+ $('#battlefield').innerHTML=`<div class="side-label opponent-side">相手側</div><div class="side-label my-side">あなた側</div>`+state.flags.map((f,i)=>{
   const mine=f.sides[m.seat]||[],other=f.sides[1-m.seat]||[];
   const top=m.seat===0?other:mine,bottom=m.seat===0?mine:other;
   const topSeat=m.seat===0?1:0,bottomSeat=m.seat===0?0:1;
   const owner=f.ownerId===m.id?'mine':f.ownerId?'opp':'';
   const boardCards=(arr,seat)=>arr.map(c=>boardCardHtml(c,i,seat)).join('');
   return `<div class="lane" data-lane="${i}">
-   <div class="formation">${boardCards(top,topSeat)}${slots(f,top.length)}</div>
+   <div class="formation opponent-formation">${boardCards(top,topSeat)}${slots(f,top.length)}</div>
    <div class="flag ${owner} ${f.claimableByMe&&!tacticTarget?'claimable':''}" data-claim="${i}">⚑ ${i+1}<small>${f.effect?'<br>'+esc(f.effect):''}</small><span class="role">${esc(f.summary||'')}</span></div>
-   <div class="formation">${boardCards(bottom,bottomSeat)}${slots(f,bottom.length)}</div>
+   <div class="formation my-formation">${boardCards(bottom,bottomSeat)}${slots(f,bottom.length)}</div>
   </div>`}).join('');
  $('#flagNav').innerHTML=state.flags.map((f,i)=>`<button class="${f.ownerId===m.id?'mine':f.ownerId?'opp':''}" data-nav="${i}">${i+1}</button>`).join('');
  $$('[data-nav]').forEach(b=>b.onclick=()=>$$('.lane')[+b.dataset.nav].scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'}));
