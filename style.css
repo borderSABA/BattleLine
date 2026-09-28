@@ -153,3 +153,14 @@ html,body{height:100%;overflow:hidden}#game.screen.active{height:100dvh;overflow
  #myInfo{height:27px!important;min-height:27px!important;line-height:27px!important;font-size:14px!important;font-weight:800!important}
  #myInfo b{font-size:15px!important}
 }
+
+/* v0.4.9: phone formation boxes hug the actual 3-card stack */
+@media(max-width:640px){
+ #battleScroller{height:auto!important;min-height:0!important;flex:0 0 auto!important}
+ #battlefield{height:auto!important;align-items:center!important;padding:2px!important}
+ .lane{height:auto!important;min-height:0!important;align-self:center!important;grid-template-rows:auto 27px auto!important;padding:1px!important}
+ .formation{height:auto!important;min-height:0!important;justify-content:flex-start!important;padding:1px 0!important;gap:1px!important}
+ .formation .card,.formation .slot{height:17px!important;min-height:17px!important;max-height:17px!important;margin:0!important}
+ .formation .card.tactic{height:17px!important;min-height:17px!important;max-height:17px!important;padding:0!important}
+ .formation .card.tactic b{max-height:15px!important;font-size:7px!important}
+}

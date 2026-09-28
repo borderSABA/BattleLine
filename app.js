@@ -1,5 +1,5 @@
 'use strict';
-const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_VERSION='v0.4.8';
+const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_VERSION='v0.4.9';
 const WORKER_ORIGIN=String(window.BATTLE_LINE_WORKER_ORIGIN||'').replace(/\/$/,'');
 const COMMON_PLAYER_NAME_KEY='boardgamePlayerName', ROOM_IDS=['room1','room2','room3','room4'];
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
