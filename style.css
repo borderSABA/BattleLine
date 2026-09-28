@@ -126,3 +126,30 @@ html,body{height:100%;overflow:hidden}#game.screen.active{height:100dvh;overflow
 /* v0.4.7 seat-correct side emphasis */
 .my-side-label{background:#6b581d!important;color:#fff1ad!important}.opponent-side-label{background:#472b2f!important;color:#f2d7d7!important}.my-formation{background:#d6ad3b24!important;box-shadow:inset 0 0 0 1px #d6ad3b38}.opponent-formation{background:transparent}
 @media(max-width:640px){.my-formation{background:#d6ad3b2e!important;box-shadow:inset 0 0 0 1px #d6ad3b55}}
+
+/* v0.4.8 game information layout */
+#myInfo{font-size:1.05em;font-weight:700}#myInfo b{font-size:1.12em}
+#oppInfo{display:flex;align-items:center;gap:9px;white-space:nowrap}
+#oppInfo .opp-flag,#oppInfo .opp-tactic{font-weight:800}
+@media(max-width:640px){
+ #game .game-head{height:42px!important;min-height:42px!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:5px!important}
+ #oppInfo{flex:1;justify-content:flex-start;gap:7px;font-size:12px!important;min-width:0}
+ #oppInfo b{font-size:14px!important;max-width:90px;overflow:hidden;text-overflow:ellipsis}
+ #oppInfo .opp-flag,#oppInfo .opp-tactic{font-size:12px!important}
+ #oppInfo .opp-hand{display:none}
+ #game .game-tools{margin-left:auto;justify-content:flex-end;gap:3px!important;flex:0 0 auto}
+ #game .game-tools button{font-size:10px!important;padding:6px 6px!important}
+ #battleScroller{flex:0 0 auto!important;height:calc(100dvh - 220px)!important;min-height:250px!important}
+ #battlefield{height:100%!important;padding:3px 2px!important;gap:2px!important}
+ .lane{height:100%!important;padding:1px!important;gap:0!important;grid-template-rows:minmax(0,1fr) 27px minmax(0,1fr)!important}
+ .formation{gap:0!important;justify-content:center!important}
+ .formation .card,.formation .slot{height:17px!important}
+ .formation .card.tactic{min-height:23px!important;max-height:34px!important}
+ .flag{font-size:8px!important}
+ .side-label{display:none!important}
+ #flagNav{height:25px!important;min-height:25px!important;margin:1px 2px!important;display:grid!important;grid-template-columns:repeat(9,1fr)!important;gap:2px!important;width:auto!important}
+ #flagNav button{width:100%!important;height:24px!important;border-radius:5px!important;font-size:12px!important;font-weight:900!important;padding:0!important}
+ #drawArea{height:44px!important;min-height:44px!important}
+ #myInfo{height:27px!important;min-height:27px!important;line-height:27px!important;font-size:14px!important;font-weight:800!important}
+ #myInfo b{font-size:15px!important}
+}

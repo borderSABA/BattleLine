@@ -1,5 +1,5 @@
 'use strict';
-const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_VERSION='v0.4.7';
+const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_VERSION='v0.4.8';
 const WORKER_ORIGIN=String(window.BATTLE_LINE_WORKER_ORIGIN||'').replace(/\/$/,'');
 const COMMON_PLAYER_NAME_KEY='boardgamePlayerName', ROOM_IDS=['room1','room2','room3','room4'];
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
@@ -40,7 +40,7 @@ function renderLobby(){
 }
 function cardHtml(c,hand=false){if(!c)return '<div class="slot"></div>';if(c.kind==='troop')return `<div class="card ${c.color}" data-card="${c.id}"><span>${colorMark(c.color)}</span><b>${c.value}</b></div>`;return `<div class="card tactic" data-card="${c.id}" title="${esc(c.text||'')}"><small>戦術</small><b>${esc(c.name)}</b></div>`}
 function colorMark(c){return ({red:'赤',blue:'青',green:'緑',yellow:'黄',purple:'紫',orange:'橙'})[c]||c}
-function renderGame(){screen('#game');if(state.status!=='finished')resultDismissed=false;const m=me(),o=opp();if(!m)return;$('#oppInfo').innerHTML=`<b>${esc(o?.name||'CPU')}</b>　手札 ${o?.handCount??0}　⚑${o?.flags??0}`;$('#myInfo').innerHTML=`<b>${esc(m.name)}</b>　⚑${m.flags||0}　使用戦術 ${m.tacticsUsed||0}`;$('#phaseText').textContent=phaseLabel();
+function renderGame(){screen('#game');if(state.status!=='finished')resultDismissed=false;const m=me(),o=opp();if(!m)return;$('#oppInfo').innerHTML=`<b>${esc(o?.name||'CPU')}</b><span class="opp-flag">⚑${o?.flags??0}</span><span class="opp-tactic">戦術${o?.tacticsUsed??0}</span><span class="opp-hand">手札${o?.handCount??0}</span>`;$('#myInfo').innerHTML=`<b>${esc(m.name)}</b>　⚑${m.flags||0}　使用戦術 ${m.tacticsUsed||0}`;$('#phaseText').textContent=phaseLabel();
 const myTurn=state.turnPlayerId===m.id;
 $('#turnGuide').innerHTML=turnGuideHtml(myTurn);
 $('#finishedActions').classList.toggle('hidden',state.status!=='finished');$('#troopDeck b').textContent=state.troopDeckCount;$('#tacticDeck b').textContent=state.tacticDeckCount;$('#tacticDeck').style.display=state.settings.tactics?'block':'none';$('#troopDeck').classList.toggle('ready',myTurn&&state.phase==='draw');$('#tacticDeck').classList.toggle('ready',myTurn&&state.phase==='draw');renderBattle();$('#hand').innerHTML=(m.hand||[]).map(cardHtml).join('');$$('#hand .card').forEach(el=>{el.onclick=()=>selectCard(el.dataset.card);if(el.dataset.card===selectedCard)el.classList.add('selected')});if(state.status==='finished'&&!resultDismissed)showResult()}
