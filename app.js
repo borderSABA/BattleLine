@@ -1,5 +1,5 @@
 'use strict';
-const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_VERSION='v0.3.1';
+const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_VERSION='v0.4';
 const WORKER_ORIGIN=String(window.BATTLE_LINE_WORKER_ORIGIN||'').replace(/\/$/,'');
 const COMMON_PLAYER_NAME_KEY='boardgamePlayerName', ROOM_IDS=['room1','room2','room3','room4'];
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
@@ -11,7 +11,7 @@ function newActionId(p='op'){actionSeq=(actionSeq+1)%1e6;return[p,Date.now(),act
 function toast(m){const e=$('#toast');e.textContent=m;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2200)}
 function screen(id){$$('.screen').forEach(x=>x.classList.remove('active'));$(id).classList.add('active')}
 function api(path,opt){if(WORKER_ORIGIN.includes('CHANGE-ME'))return Promise.reject(new Error('config.js にWorker URLを設定してください'));return fetch(WORKER_ORIGIN+path,opt)}
-async function loadRooms(){try{const r=await api('/rooms',{cache:'no-store'}),d=await r.json();renderRooms(d.rooms||[])}catch(e){renderRooms([]);toast(e.message)}}
+async function loadRooms(){try{const q=new URLSearchParams();ROOM_IDS.forEach((id,i)=>q.set('token'+(i+1),localStorage.getItem(tokenKey(id))||''));const r=await api('/rooms?'+q.toString(),{cache:'no-store'}),d=await r.json();renderRooms(d.rooms||[])}catch(e){renderRooms([]);toast(e.message)}}
 function renderRooms(rooms){$('#rooms').innerHTML=ROOM_IDS.map((id,i)=>{const r=rooms.find(x=>x.roomId===id)||{players:[],status:'lobby'};const names=(r.players||[]).map(x=>x.name).join(' / ')||'なし';return `<article class="room"><h2>ROOM ${i+1}</h2><div class="status">${r.status==='playing'?'ゲーム中':r.status==='finished'?'終了':'待機中'}</div><b>${(r.players||[]).length} / 2人</b><div class="players">参加者：${esc(names)}</div><button class="join" data-room="${id}">${r.reconnectable?'再接続':'参加する'}</button><button class="reset" data-reset="${id}">初期化</button></article>`}).join('');$$('[data-room]').forEach(b=>b.onclick=()=>joinRoom(b.dataset.room));$$('[data-reset]').forEach(b=>b.onclick=()=>resetRoom(b.dataset.reset))}
 async function resetRoom(id){if(!confirm(`ROOM ${ROOM_IDS.indexOf(id)+1} を初期化しますか？`))return;try{const r=await api(`/reset-empty?roomId=${id}`,{method:'POST'}),d=await r.json();if(!r.ok)throw Error(d.error||'初期化できません');loadRooms()}catch(e){toast(e.message)}}
 async function joinRoom(id){const name=$('#name').value.trim().slice(0,32);if(!name)return toast('プレイヤー名を入力してください');const token=getToken(id);try{const r=await api(`/join-check?roomId=${id}&name=${encodeURIComponent(name)}&token=${token}`,{cache:'no-store'}),d=await r.json();if(!r.ok)throw Error(d.error||'ROOMへ参加できません');currentRoomId=id;currentPlayerName=name;localStorage.setItem(`${GAME_ID}-online-room`,id);localStorage.setItem(`${GAME_ID}-online-active-name`,name);connect()}catch(e){toast(e.message)}}
