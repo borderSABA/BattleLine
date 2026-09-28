@@ -11,3 +11,8 @@
 .result-score div{display:flex;flex-direction:column;gap:5px}.result-score span{font-size:13px;opacity:.75}.result-score b{font-size:24px}.result-score em{font-style:normal;font-size:12px;opacity:.5}
 .result-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}.result-actions button{padding:12px;border-radius:9px;font-weight:800}.result-primary{grid-column:1/-1;background:#d6ad3b;color:#111}.result-secondary{background:#36566a;color:#fff}.result-ghost{background:#263640;color:#fff;border:1px solid #526775}
 @media(max-width:640px){.turn-guide{min-height:42px;gap:4px;flex-direction:column;padding:5px 8px}.turn-guide b{font-size:12px}.turn-guide span{font-size:10px}.finished-actions{bottom:6px;width:calc(100% - 20px)}.finished-actions button{min-width:0;flex:1}.result-card h2{font-size:40px}}
+
+.board-card.tactic-target{cursor:pointer;outline:4px solid #f2cf66;box-shadow:0 0 14px #f2cf66;transform:translateY(-2px);animation:tacticPulse .85s ease-in-out infinite alternate}
+.board-card.tactic-dim{opacity:.28;filter:grayscale(.55)}
+@keyframes tacticPulse{from{box-shadow:0 0 5px #f2cf66}to{box-shadow:0 0 18px #f2cf66}}
+#cancelTacticBtn{margin-left:8px;padding:4px 10px;background:#5b3030;color:#fff}

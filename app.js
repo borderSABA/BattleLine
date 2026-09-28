@@ -3,7 +3,7 @@ const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_
 const WORKER_ORIGIN=String(window.BATTLE_LINE_WORKER_ORIGIN||'').replace(/\/$/,'');
 const COMMON_PLAYER_NAME_KEY='boardgamePlayerName', ROOM_IDS=['room1','room2','room3','room4'];
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-let ws=null,currentRoomId=null,currentPlayerName='',state=null,selectedCard=null,reconnectTimer=null,commonNameSavedForSession=null,actionSeq=0;
+let ws=null,currentRoomId=null,currentPlayerName='',state=null,selectedCard=null,tacticTarget=null,reconnectTimer=null,commonNameSavedForSession=null,actionSeq=0;
 function commonSavedName(){return String(localStorage.getItem(COMMON_PLAYER_NAME_KEY)||'').trim().slice(0,32)}
 function saveCommonNameOnActualStart(n){n=String(n||'').trim().slice(0,32);if(n)localStorage.setItem(COMMON_PLAYER_NAME_KEY,n)}
 function tokenKey(r){return `${GAME_ID}-online-token-${r}`}; function getToken(r){let t=localStorage.getItem(tokenKey(r));if(!t){t=crypto.randomUUID().replace(/-/g,'');localStorage.setItem(tokenKey(r),t)}return t}
@@ -18,7 +18,12 @@ async function joinRoom(id){const name=$('#name').value.trim().slice(0,32);if(!n
 function connect(){if(ws)try{ws.close()}catch{};const u=new URL(WORKER_ORIGIN);u.protocol=u.protocol==='https:'?'wss:':'ws:';u.pathname='/ws';u.searchParams.set('roomId',currentRoomId);u.searchParams.set('name',currentPlayerName);u.searchParams.set('token',getToken(currentRoomId));ws=new WebSocket(u);ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='state'){state=m.state;onState()}else if(m.type==='error')toast(m.error)};ws.onclose=()=>{if(currentRoomId)scheduleReconnect()};ws.onerror=()=>{} }
 function scheduleReconnect(){clearTimeout(reconnectTimer);reconnectTimer=setTimeout(()=>{if(currentRoomId&&(!ws||ws.readyState!==1))connect()},1800)}
 function send(type,data={}){if(!ws||ws.readyState!==1)return toast('再接続中です');ws.send(JSON.stringify({type,actionId:newActionId(type),...data}))}
-function onState(){if(state.status==='playing'&&state.gameSessionId&&commonNameSavedForSession!==state.gameSessionId){saveCommonNameOnActualStart(currentPlayerName);commonNameSavedForSession=state.gameSessionId}if(state.status==='lobby')renderLobby();else renderGame();}
+function onState(){
+ const mine=me();
+ if(!mine||state.status!=='playing'||state.turnPlayerId!==mine.id||state.phase!=='play'){
+   selectedCard=null;tacticTarget=null;
+ }
+ if(state.status==='playing'&&state.gameSessionId&&commonNameSavedForSession!==state.gameSessionId){saveCommonNameOnActualStart(currentPlayerName);commonNameSavedForSession=state.gameSessionId}if(state.status==='lobby')renderLobby();else renderGame();}
 function me(){return state?.players?.find(p=>p.token===getToken(currentRoomId))} function opp(){const m=me();return state?.players?.find(p=>p.id!==m?.id)}
 function renderLobby(){screen('#lobby');$('#lobbyRoom').textContent=`ROOM ${ROOM_IDS.indexOf(currentRoomId)+1}`;$('#seats').innerHTML=(state.players||[]).map((p,i)=>`<p><b>${i+1}.</b> ${esc(p.name)} ${p.cpu?'（CPU Lv'+p.cpu+'）':''}${p.id===state.hostId?' ★HOST':''}</p>`).join('')||'<p>待機中</p>';const host=me()?.id===state.hostId;$('#hostSettings').style.opacity=host?'1':'.55';$('#startBtn').style.display=host?'block':'none';for(const [id,key] of [['tactics','tactics'],['claimRule','claimRule'],['first','first'],['cpu','cpuLevel']]){$('#'+id).value=String(state.settings?.[key]??(id==='tactics'?'true':id==='claimRule'?'normal':id==='first'?'random':'0'));$('#'+id).disabled=!host} }
 function cardHtml(c,hand=false){if(!c)return '<div class="slot"></div>';if(c.kind==='troop')return `<div class="card ${c.color}" data-card="${c.id}"><span>${colorMark(c.color)}</span><b>${c.value}</b></div>`;return `<div class="card tactic" data-card="${c.id}" title="${esc(c.text||'')}"><small>戦術</small><b>${esc(c.name)}</b></div>`}
@@ -31,14 +36,77 @@ function phaseLabel(){const m=me(),turn=state.turnPlayerId===m?.id?'あなた':'
 function turnGuideHtml(myTurn){
  if(state.status==='finished')return '<b>対戦終了</b><span>盤面を確認できます。下のボタンからリザルト表示・ロビー復帰ができます。</span>';
  if(!myTurn)return `<b>相手のターン</b><span>${state.phase==='play'?'カードを配置しています':'カードを引いています'}</span>`;
- if(state.phase==='draw')return '<b>③ カードを1枚引いてください</b><span>部隊山札 または 戦術山札 を選ぶとターン終了です。</span>';
+ if(tacticTarget)return '<b>戦術対象を選択中</b><span>盤面の光っている対象を選択してください。</span>'; if(state.phase==='draw')return '<b>③ カードを1枚引いてください</b><span>部隊山札 または 戦術山札 を選ぶとターン終了です。</span>';
  return '<b>① 獲得できる旗を確認　→　② 手札を1枚選んで戦線へ配置</b><span>配置後は山札から1枚引きます。</span>';
 }
-function renderBattle(){const m=me();$('#battlefield').innerHTML=state.flags.map((f,i)=>{const mine=f.sides[m.seat]||[],other=f.sides[1-m.seat]||[];const top=m.seat===0?other:mine,bottom=m.seat===0?mine:other;const owner=f.ownerId===m.id?'mine':f.ownerId?'opp':'';return `<div class="lane" data-lane="${i}"><div class="formation">${top.map(cardHtml).join('')}${slots(f,top.length)}</div><div class="flag ${owner} ${f.claimableByMe?'claimable':''}" data-claim="${i}">⚑ ${i+1}<small>${f.effect?'<br>'+esc(f.effect):''}</small><span class="role">${esc(f.summary||'')}</span></div><div class="formation">${bottom.map(cardHtml).join('')}${slots(f,bottom.length)}</div></div>`}).join('');$('#flagNav').innerHTML=state.flags.map((f,i)=>`<button class="${f.ownerId===m.id?'mine':f.ownerId?'opp':''}" data-nav="${i}">${i+1}</button>`).join('');$$('[data-nav]').forEach(b=>b.onclick=()=>$$('.lane')[+b.dataset.nav].scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'}));$$('.lane').forEach(l=>l.onclick=e=>{if(e.target.closest('.flag.claimable'))return; if(selectedCard)playSelected(+l.dataset.lane)});$$('.flag.claimable').forEach(f=>f.onclick=e=>{e.stopPropagation();send('claim',{flag:+f.dataset.claim})})}
+function renderBattle(){
+ const m=me();
+ $('#battlefield').innerHTML=state.flags.map((f,i)=>{
+  const mine=f.sides[m.seat]||[],other=f.sides[1-m.seat]||[];
+  const top=m.seat===0?other:mine,bottom=m.seat===0?mine:other;
+  const topSeat=m.seat===0?1:0,bottomSeat=m.seat===0?0:1;
+  const owner=f.ownerId===m.id?'mine':f.ownerId?'opp':'';
+  const boardCards=(arr,seat)=>arr.map(c=>boardCardHtml(c,i,seat)).join('');
+  return `<div class="lane" data-lane="${i}">
+   <div class="formation">${boardCards(top,topSeat)}${slots(f,top.length)}</div>
+   <div class="flag ${owner} ${f.claimableByMe&&!tacticTarget?'claimable':''}" data-claim="${i}">⚑ ${i+1}<small>${f.effect?'<br>'+esc(f.effect):''}</small><span class="role">${esc(f.summary||'')}</span></div>
+   <div class="formation">${boardCards(bottom,bottomSeat)}${slots(f,bottom.length)}</div>
+  </div>`}).join('');
+ $('#flagNav').innerHTML=state.flags.map((f,i)=>`<button class="${f.ownerId===m.id?'mine':f.ownerId?'opp':''}" data-nav="${i}">${i+1}</button>`).join('');
+ $$('[data-nav]').forEach(b=>b.onclick=()=>$$('.lane')[+b.dataset.nav].scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'}));
+ if(tacticTarget){
+   markTacticTargets();
+ }else{
+   $$('.lane').forEach(l=>l.onclick=e=>{if(e.target.closest('.flag.claimable')||e.target.closest('.board-card'))return;if(selectedCard)playSelected(+l.dataset.lane)});
+   $$('.flag.claimable').forEach(f=>f.onclick=e=>{e.stopPropagation();send('claim',{flag:+f.dataset.claim})});
+ }
+}
+function boardCardHtml(c,fi,seat){
+ const raw=cardHtml(c).replace('class="card ',`class="card board-card `).replace('data-card="',`data-board-fi="${fi}" data-board-seat="${seat}" data-board-card="`);
+ return raw;
+}
 function slots(f,n){const max=f.mud?4:3;return Array.from({length:Math.max(0,max-n)},()=>'<div class="slot"></div>').join('')}
-function selectCard(id){if(state.turnPlayerId!==me()?.id||state.phase!=='play')return toast('今はカードを出せません');selectedCard=selectedCard===id?null:id;renderGame()}
-function playSelected(flag){const c=me().hand.find(x=>x.id===selectedCard);if(!c)return;if(c.kind==='tactic'&&['deserter','redeploy','traitor'].includes(c.code)){openTacticTarget(c,flag);return}send('play',{cardId:selectedCard,flag});selectedCard=null}
-function openTacticTarget(c,flag){const choices=[];state.flags.forEach((f,fi)=>f.sides.forEach((arr,seat)=>arr.forEach(x=>choices.push({fi,seat,x}))));let html=`<h2>${esc(c.name)}</h2><p>${esc(c.text)}</p>`;if(c.code==='deserter')html+=choices.filter(q=>q.seat!==me().seat&&!state.flags[q.fi].ownerId).map(q=>`<button class="targetCard" data-fi="${q.fi}" data-id="${q.x.id}">旗${q.fi+1} ${esc(cardLabel(q.x))}</button>`).join('');if(c.code==='redeploy')html+=choices.filter(q=>q.seat===me().seat&&!state.flags[q.fi].ownerId).map(q=>`<button class="targetCard" data-fi="${q.fi}" data-id="${q.x.id}">旗${q.fi+1} ${esc(cardLabel(q.x))}</button>`).join('');if(c.code==='traitor')html+=choices.filter(q=>q.seat!==me().seat&&q.x.kind==='troop'&&!state.flags[q.fi].ownerId).map(q=>`<button class="targetCard" data-fi="${q.fi}" data-id="${q.x.id}">旗${q.fi+1} ${esc(cardLabel(q.x))}</button>`).join('');modal(html);$$('.targetCard').forEach(b=>b.onclick=()=>{closeModal();send('play',{cardId:c.id,flag,targetFlag:flag,sourceFlag:+b.dataset.fi,targetCardId:b.dataset.id});selectedCard=null})}
+function selectCard(id){
+ if(state.turnPlayerId!==me()?.id||state.phase!=='play'){selectedCard=null;tacticTarget=null;return toast('今はカードを出せません')}
+ tacticTarget=null;selectedCard=selectedCard===id?null:id;renderGame()
+}
+function playSelected(flag){
+ const c=me().hand.find(x=>x.id===selectedCard);if(!c)return;
+ if(c.kind==='tactic'&&['deserter','redeploy','traitor'].includes(c.code)){beginTacticTarget(c,flag);return}
+ send('play',{cardId:selectedCard,flag});selectedCard=null;tacticTarget=null;
+}
+function beginTacticTarget(c,flag){
+ tacticTarget={cardId:c.id,code:c.code,targetFlag:flag};
+ renderGame();
+ toast(`${c.name}：盤面の光っている対象を選択してください`);
+}
+function cancelTacticTarget(){tacticTarget=null;renderGame()}
+function validTacticTarget(fi,seat,c){
+ if(!tacticTarget||state.flags[fi].ownerId)return false;
+ if(tacticTarget.code==='deserter')return seat!==me().seat;
+ if(tacticTarget.code==='redeploy')return seat===me().seat;
+ if(tacticTarget.code==='traitor')return seat!==me().seat&&c.kind==='troop';
+ return false;
+}
+function markTacticTargets(){
+ $$('.board-card').forEach(el=>{
+  const fi=+el.dataset.boardFi,seat=+el.dataset.boardSeat,id=el.dataset.boardCard;
+  const c=state.flags[fi].sides[seat].find(x=>x.id===id);
+  if(c&&validTacticTarget(fi,seat,c)){
+   el.classList.add('tactic-target');
+   el.onclick=e=>{e.stopPropagation();confirmTacticTarget(fi,id,c)};
+  }else el.classList.add('tactic-dim');
+ });
+ $('#turnGuide').innerHTML=`<b>戦術対象を選択中</b><span>光っているカードを選択してください。 <button id="cancelTacticBtn">キャンセル</button></span>`;
+ $('#cancelTacticBtn').onclick=cancelTacticTarget;
+}
+function confirmTacticTarget(sourceFlag,targetCardId,c){
+ const tc=me().hand.find(x=>x.id===tacticTarget?.cardId);if(!tc)return cancelTacticTarget();
+ const label=`旗${sourceFlag+1}の「${cardLabel(c)}」`;
+ if(!confirm(`${tc.name}を${label}に使用しますか？`))return;
+ const payload={cardId:tc.id,flag:tacticTarget.targetFlag,sourceFlag,targetCardId};
+ tacticTarget=null;selectedCard=null;send('play',payload);
+}
 function cardLabel(c){return c.kind==='troop'?`${colorMark(c.color)}${c.value}`:c.name}
 function modal(h){$('#modalBody').innerHTML=h;$('#modal').classList.remove('hidden')} function closeModal(){$('#modal').classList.add('hidden')}
 function showResult(force=false){
