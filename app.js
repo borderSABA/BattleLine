@@ -1,13 +1,14 @@
 'use strict';
-const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_VERSION='v0.5.1';
+const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_VERSION='v0.6.1';
 const WORKER_ORIGIN=String(window.BATTLE_LINE_WORKER_ORIGIN||'').replace(/\/$/,'');
 const COMMON_PLAYER_NAME_KEY='boardgamePlayerName', ROOM_IDS=['room1','room2','room3','room4'];
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-let ws=null,currentRoomId=null,currentPlayerName='',state=null,selectedCard=null,tacticTarget=null,resultDismissed=false,reconnectTimer=null,commonNameSavedForSession=null,actionSeq=0;
+let ws=null,currentRoomId=null,currentPlayerName='',state=null,selectedCard=null,tacticTarget=null,resultDismissed=false,reconnectTimer=null,commonNameSavedForSession=null,actionSeq=0,lastTacticNoticeId=null;
 function commonSavedName(){return String(localStorage.getItem(COMMON_PLAYER_NAME_KEY)||'').trim().slice(0,32)}
 function saveCommonNameOnActualStart(n){n=String(n||'').trim().slice(0,32);if(n)localStorage.setItem(COMMON_PLAYER_NAME_KEY,n)}
 function tokenKey(r){return `${GAME_ID}-online-token-${r}`}; function getToken(r){let t=localStorage.getItem(tokenKey(r));if(!t){t=crypto.randomUUID().replace(/-/g,'');localStorage.setItem(tokenKey(r),t)}return t}
 function newActionId(p='op'){actionSeq=(actionSeq+1)%1e6;return[p,Date.now(),actionSeq,Math.random().toString(36).slice(2,8)].join('-')}
+function showActionPop(text){const e=$('#actionPop');if(!e)return;e.textContent=text;e.classList.add('show');clearTimeout(showActionPop.t);showActionPop.t=setTimeout(()=>e.classList.remove('show'),2000)}
 function toast(m){const e=$('#toast');e.textContent=m;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2200)}
 function screen(id){$$('.screen').forEach(x=>x.classList.remove('active'));$(id).classList.add('active')}
 function api(path,opt){if(WORKER_ORIGIN.includes('CHANGE-ME'))return Promise.reject(new Error('config.js にWorker URLを設定してください'));return fetch(WORKER_ORIGIN+path,opt)}
@@ -20,9 +21,10 @@ function scheduleReconnect(){clearTimeout(reconnectTimer);reconnectTimer=setTime
 function send(type,data={}){if(!ws||ws.readyState!==1)return toast('再接続中です');ws.send(JSON.stringify({type,actionId:newActionId(type),...data}))}
 function onState(){
  const mine=me();
- if(!mine||state.status!=='playing'||state.turnPlayerId!==mine.id||state.phase!=='play'){
-   selectedCard=null;tacticTarget=null;
+ if(!mine||state.status!=='playing'||state.turnPlayerId!==mine.id||!['play','scoutReturn','scoutOrder'].includes(state.phase)){
+   selectedCard=null;if(!['scoutDraw','scoutReturn','scoutOrder'].includes(state?.phase))tacticTarget=null;
  }
+ if(state?.tacticNotice?.id&&state.tacticNotice.id!==lastTacticNoticeId){lastTacticNoticeId=state.tacticNotice.id;showActionPop(state.tacticNotice.text)}
  if(state.status==='playing'&&state.gameSessionId&&commonNameSavedForSession!==state.gameSessionId){saveCommonNameOnActualStart(currentPlayerName);commonNameSavedForSession=state.gameSessionId}if(state.status==='lobby')renderLobby();else renderGame();}
 function me(){return state?.players?.find(p=>p.token===getToken(currentRoomId))} function opp(){const m=me();return state?.players?.find(p=>p.id!==m?.id)}
 function renderLobby(){
@@ -43,14 +45,23 @@ function colorMark(c){return ({red:'赤',blue:'青',green:'緑',yellow:'黄',pur
 function renderGame(){screen('#game');if(state.status!=='finished')resultDismissed=false;const m=me(),o=opp();if(!m)return;$('#oppInfo').innerHTML=`<b>${esc(o?.name||'CPU')}</b><span class="opp-flag">⚑${o?.flags??0}</span><span class="opp-tactic">戦術${o?.tacticsUsed??0}</span><span class="opp-hand">手札${o?.handCount??0}</span>`;$('#myInfo').innerHTML=`<b>${esc(m.name)}</b>　⚑${m.flags||0}　使用戦術 ${m.tacticsUsed||0}`;$('#phaseText').textContent=phaseLabel();
 const myTurn=state.turnPlayerId===m.id;
 $('#turnGuide').innerHTML=turnGuideHtml(myTurn);
-$('#finishedActions').classList.toggle('hidden',state.status!=='finished');$('#troopDeck b').textContent=state.troopDeckCount;$('#tacticDeck b').textContent=state.tacticDeckCount;$('#tacticDeck').style.display=state.settings.tactics?'block':'none';$('#troopDeck').classList.toggle('ready',myTurn&&state.phase==='draw');$('#tacticDeck').classList.toggle('ready',myTurn&&state.phase==='draw');renderBattle();$('#hand').innerHTML=(m.hand||[]).map(cardHtml).join('');$$('#hand .card').forEach(el=>{el.onclick=()=>selectCard(el.dataset.card);if(el.dataset.card===selectedCard)el.classList.add('selected')});if(state.status==='finished'&&!resultDismissed)showResult()}
+$('#finishedActions').classList.toggle('hidden',state.status!=='finished');$('#troopDeck b').textContent=state.troopDeckCount;$('#tacticDeck b').textContent=state.tacticDeckCount;$('#tacticDeck').style.display=state.settings.tactics?'block':'none';const deckReady=myTurn&&['draw','scoutDraw'].includes(state.phase);$('#troopDeck').classList.toggle('ready',deckReady);$('#tacticDeck').classList.toggle('ready',deckReady);renderBattle();$('#hand').innerHTML=(m.hand||[]).map(cardHtml).join('');$$('#hand .card').forEach(el=>{el.onclick=()=>selectCard(el.dataset.card);if(el.dataset.card===selectedCard)el.classList.add('selected')});const sc=m.hand?.find(x=>x.id===selectedCard),ub=$('#useTacticBtn');
+ if(state.phase==='scoutReturn'){ub.textContent='返却';ub.disabled=!(myTurn&&sc)}
+ else if(state.phase==='scoutOrder'){ub.textContent='上に置く';ub.disabled=!(myTurn&&sc&&(state.scout?.pendingReturns||[]).some(x=>x.id===sc.id))}
+ else{ub.textContent='使用';ub.disabled=!(myTurn&&state.phase==='play'&&sc?.kind==='tactic')}
+ ub.classList.toggle('ready',!ub.disabled);if(state.status==='finished'&&!resultDismissed)showResult()}
 function phaseLabel(){const m=me(),turn=state.turnPlayerId===m?.id?'あなた':'相手';if(state.status==='finished')return 'ゲーム終了';return `${turn}の手番 / ${state.phase==='play'?'カード配置':state.phase==='draw'?'カードを引く':'処理中'}`}
 function turnGuideHtml(myTurn){
- if(state.status==='finished')return '<b>対戦終了</b><span>盤面を確認できます。下のボタンからリザルト表示・ロビー復帰ができます。</span>';
- if(!myTurn)return `<b>相手のターン</b><span>${state.phase==='play'?'カードを配置しています':'カードを引いています'}</span>`;
- if(tacticTarget)return '<b>戦術対象を選択中</b><span>盤面の光っている対象を選択してください。</span>'; if(state.phase==='draw')return '<b>③ カードを1枚引いてください</b><span>部隊山札 または 戦術山札 を選ぶとターン終了です。</span>';
- return '<b>① 獲得できる旗を確認　→　② 手札を1枚選んで戦線へ配置</b><span>配置後は山札から1枚引きます。</span>';
+ if(state.status==='finished')return '<b>対戦終了</b><span>盤面を確認できます。</span>';
+ if(!myTurn)return `<b>相手のターン</b><span>${state.phase==='scoutDraw'||state.phase==='scoutReturn'?'偵察を処理しています':state.phase==='play'?'カードを配置しています':'カードを引いています'}</span>`;
+ if(state.phase==='scoutDraw')return `<b>偵察：3枚引く</b><span>部隊・戦術どちらかの山札を押してください。 残り ${3-(state.scout?.draws||0)}枚</span>`;
+ if(state.phase==='scoutReturn')return `<b>偵察：2枚戻す</b><span>手札から返すカードを1枚ずつ選んで「返却」を押してください。 残り ${2-(state.scout?.pendingReturns?.length||0)}枚</span>`;
+ if(state.phase==='scoutOrder')return `<b>偵察：山札の順番</b><span>同じ山札へ戻す2枚です。次に引かれる「山札の一番上」に置くカードを選んでください。</span>`;
+ if(tacticTarget)return `<b>${esc(tacticTarget.name||'戦術')}を処理中</b><span>${esc(tacticInstruction())} <button id="cancelTacticBtn">キャンセル</button></span>`;
+ if(state.phase==='draw')return '<b>③ カードを1枚引いてください</b><span>部隊山札 または 戦術山札 を選ぶとターン終了です。</span>';
+ return '<b>① 獲得確認　→　② カードを配置</b><span>戦術カードは選択後、「使用」を押してください。</span>';
 }
+function tacticInstruction(){if(!tacticTarget)return '';if(tacticTarget.stage==='source')return tacticTarget.code==='redeploy'?'移動する自分のカードを選択してください。':tacticTarget.code==='traitor'?'裏切らせる相手の部隊カードを選択してください。':'捨てる相手のカードを選択してください。';if(tacticTarget.stage==='destination')return '移動先の自分側戦線を選択してください。';return '効果を適用する戦線を選択してください。'}
 function renderBattle(){
  const m=me();
  const topSeat=1,bottomSeat=0;
@@ -61,9 +72,9 @@ function renderBattle(){
   const owner=f.ownerId===m.id?'mine':f.ownerId?'opp':'';
   const boardCards=(arr,seat)=>arr.map(c=>boardCardHtml(c,i,seat)).join('');
   return `<div class="lane" data-lane="${i}">
-   <div class="formation ${topClass}">${boardCards(top,topSeat)}${slots(f,top.length)}</div>
-   <div class="flag ${owner} ${f.claimableByMe&&!tacticTarget?'claimable':''}" data-claim="${i}">⚑ ${i+1}<small>${f.effect?'<br>'+esc(f.effect):''}</small><span class="role">${esc(f.summary||'')}</span></div>
-   <div class="formation ${bottomClass}">${boardCards(bottom,bottomSeat)}${slots(f,bottom.length)}</div>
+   <div class="formation ${topClass}">${boardCards(top,topSeat)}${slots(f,top.length)}<span class="formation-role">${esc(f.summaries?.[topSeat]||'')}</span></div>
+   <div class="flag ${owner} ${f.claimableByMe&&!tacticTarget?'claimable':''}" data-claim="${i}">⚑ ${i+1}<small>${f.effect?'<br>'+esc(f.effect):''}</small></div>
+   <div class="formation ${bottomClass}">${boardCards(bottom,bottomSeat)}${slots(f,bottom.length)}<span class="formation-role">${esc(f.summaries?.[bottomSeat]||'')}</span></div>
   </div>`}).join('');
  $('#flagNav').innerHTML=state.flags.map((f,i)=>`<button class="${f.ownerId===m.id?'mine':f.ownerId?'opp':''}" data-nav="${i}">${i+1}</button>`).join('');
  $$('[data-nav]').forEach(b=>b.onclick=()=>$$('.lane')[+b.dataset.nav].scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'}));
@@ -79,46 +90,22 @@ function boardCardHtml(c,fi,seat){
 }
 function slots(f,n){const max=f.mud?4:3;return Array.from({length:Math.max(0,max-n)},()=>'<div class="slot"></div>').join('')}
 function selectCard(id){
- if(state.turnPlayerId!==me()?.id||state.phase!=='play'){selectedCard=null;tacticTarget=null;return toast('今はカードを出せません')}
- tacticTarget=null;selectedCard=selectedCard===id?null:id;renderGame()
+ if(state.turnPlayerId!==me()?.id||!["play","scoutReturn"].includes(state.phase)){selectedCard=null;tacticTarget=null;return toast('今はカードを選べません')}
+ if(state.phase==='scoutReturn'||state.phase==='scoutOrder'){if(state.phase==='scoutOrder'&&!(state.scout?.pendingReturns||[]).some(x=>x.id===id))return;selectedCard=selectedCard===id?null:id;return renderGame()}
+ if(tacticTarget)return toast('戦術処理中です。キャンセルしてから選び直してください');selectedCard=selectedCard===id?null:id;renderGame()
 }
-function playSelected(flag){
- const c=me().hand.find(x=>x.id===selectedCard);if(!c)return;
- if(c.kind==='tactic'&&['deserter','redeploy','traitor'].includes(c.code)){beginTacticTarget(c,flag);return}
- send('play',{cardId:selectedCard,flag});selectedCard=null;tacticTarget=null;
-}
-function beginTacticTarget(c,flag){
- tacticTarget={cardId:c.id,code:c.code,targetFlag:flag};
- renderGame();
- toast(`${c.name}：盤面の光っている対象を選択してください`);
-}
+function playSelected(flag){const c=me().hand.find(x=>x.id===selectedCard);if(!c)return;if(c.kind==='tactic')return toast('戦術カードは「使用」を押してください');send('play',{cardId:selectedCard,flag});selectedCard=null}
+function useSelectedTactic(){if(state.turnPlayerId!==me()?.id||state.phase!=='play')return toast('今は戦術を使用できません');const c=me().hand.find(x=>x.id===selectedCard);if(!c||c.kind!=='tactic')return toast('使用する戦術カードを選択してください');if(c.code==='scout'){send('play',{cardId:c.id,flag:0});selectedCard=null;return}const stage=['deserter','redeploy','traitor'].includes(c.code)?'source':'targetFlag';tacticTarget={cardId:c.id,code:c.code,name:c.name,stage,sourceFlag:null,targetCardId:null};renderGame()}
 function cancelTacticTarget(){tacticTarget=null;renderGame()}
-function validTacticTarget(fi,seat,c){
- if(!tacticTarget||state.flags[fi].ownerId)return false;
- if(tacticTarget.code==='deserter')return seat!==me().seat;
- if(tacticTarget.code==='redeploy')return seat===me().seat;
- if(tacticTarget.code==='traitor')return seat!==me().seat&&c.kind==='troop';
- return false;
-}
+function validTacticTarget(fi,seat,c){if(!tacticTarget||state.flags[fi].ownerId||tacticTarget.stage!=='source')return false;if(tacticTarget.code==='deserter')return seat!==me().seat;if(tacticTarget.code==='redeploy')return seat===me().seat;if(tacticTarget.code==='traitor')return seat!==me().seat&&c.kind==='troop';return false}
+function destinationLegal(fi){const f=state.flags[fi];if(!f||f.ownerId)return false;if(tacticTarget?.code==='redeploy'&&fi===tacticTarget.sourceFlag)return false;return (f.sides[me().seat]||[]).length<(f.mud?4:3)}
 function markTacticTargets(){
- $$('.board-card').forEach(el=>{
-  const fi=+el.dataset.boardFi,seat=+el.dataset.boardSeat,id=el.dataset.boardCard;
-  const c=state.flags[fi].sides[seat].find(x=>x.id===id);
-  if(c&&validTacticTarget(fi,seat,c)){
-   el.classList.add('tactic-target');
-   el.onclick=e=>{e.stopPropagation();confirmTacticTarget(fi,id,c)};
-  }else el.classList.add('tactic-dim');
- });
- $('#turnGuide').innerHTML=`<b>戦術対象を選択中</b><span>光っているカードを選択してください。 <button id="cancelTacticBtn">キャンセル</button></span>`;
- $('#cancelTacticBtn').onclick=cancelTacticTarget;
+ if(tacticTarget.stage==='source'){$$('.board-card').forEach(el=>{const fi=+el.dataset.boardFi,seat=+el.dataset.boardSeat,id=el.dataset.boardCard,c=state.flags[fi].sides[seat].find(x=>x.id===id);if(c&&validTacticTarget(fi,seat,c)){el.classList.add('tactic-target');el.onclick=e=>{e.stopPropagation();chooseTacticSource(fi,id,c)}}else el.classList.add('tactic-dim')})}
+ else{$$('.lane').forEach(l=>{const fi=+l.dataset.lane;if((tacticTarget.stage==='destination'&&destinationLegal(fi))||(tacticTarget.stage==='targetFlag'&&!state.flags[fi].ownerId)){l.classList.add('tactic-lane-target');l.onclick=e=>{e.stopPropagation();finishTacticAt(fi)}}else l.classList.add('tactic-dim')})}
+ const b=$('#cancelTacticBtn');if(b)b.onclick=cancelTacticTarget;
 }
-function confirmTacticTarget(sourceFlag,targetCardId,c){
- const tc=me().hand.find(x=>x.id===tacticTarget?.cardId);if(!tc)return cancelTacticTarget();
- const label=`旗${sourceFlag+1}の「${cardLabel(c)}」`;
- if(!confirm(`${tc.name}を${label}に使用しますか？`))return;
- const payload={cardId:tc.id,flag:tacticTarget.targetFlag,sourceFlag,targetCardId};
- tacticTarget=null;selectedCard=null;send('play',payload);
-}
+function chooseTacticSource(sourceFlag,targetCardId,c){if(tacticTarget.code==='deserter'){if(!confirm(`${tacticTarget.name}で旗${sourceFlag+1}の「${cardLabel(c)}」を捨てますか？`))return;const id=tacticTarget.cardId;tacticTarget=null;selectedCard=null;send('play',{cardId:id,flag:sourceFlag,sourceFlag,targetCardId});return}tacticTarget.sourceFlag=sourceFlag;tacticTarget.targetCardId=targetCardId;tacticTarget.stage='destination';renderGame()}
+function finishTacticAt(flag){const t=tacticTarget;if(!t)return;if(t.stage==='targetFlag'){const id=t.cardId;tacticTarget=null;selectedCard=null;send('play',{cardId:id,flag});return}const seat=t.code==='redeploy'?me().seat:1-me().seat,c=state.flags[t.sourceFlag]?.sides[seat]?.find(x=>x.id===t.targetCardId);if(!confirm(`${t.name}：${c?cardLabel(c):'選択カード'}をフラッグ${flag+1}へ移動しますか？`))return;const payload={cardId:t.cardId,flag,sourceFlag:t.sourceFlag,targetCardId:t.targetCardId};tacticTarget=null;selectedCard=null;send('play',payload)}
 function cardLabel(c){return c.kind==='troop'?`${colorMark(c.color)}${c.value}`:c.name}
 function modal(h){$('#modalBody').innerHTML=h;$('#modal').classList.remove('hidden')} function closeModal(){$('#modal').classList.add('hidden')}
 function showResult(force=false){
@@ -149,10 +136,11 @@ for(const [id,key] of [['tactics','tactics'],['claimRule','claimRule'],['first',
  $('#'+id).onchange=e=>send('settings',{key,value:id==='tactics'?e.target.value==='true':id==='cpu'?+e.target.value:e.target.value});
  $$(`[data-setting-ui="${id}"] button`).forEach(b=>b.onclick=()=>{if(b.disabled)return;const value=b.dataset.value;send('settings',{key,value:id==='tactics'?value==='true':id==='cpu'?+value:value})});
 }
-$('#troopDeck').onclick=()=>{if(state?.phase==='draw')send('draw',{deck:'troop'})};$('#tacticDeck').onclick=()=>{if(state?.phase==='draw')send('draw',{deck:'tactic'})};$('#historyBtn').onclick=()=>modal('<h2>ログ</h2>'+(state.history||[]).slice().reverse().map(x=>`<div class="log">${esc(x)}</div>`).join(''));
+function deckClick(deck){if(state?.phase==='draw')return send('draw',{deck});if(state?.phase==='scoutDraw')return send('scoutDraw',{deck});}
+$('#troopDeck').onclick=()=>deckClick('troop');$('#tacticDeck').onclick=()=>deckClick('tactic');$('#useTacticBtn').onclick=useSelectedTactic;$('#historyBtn').onclick=()=>modal('<h2>ログ</h2>'+(state.history||[]).slice().reverse().map(x=>`<div class="log">${esc(x)}</div>`).join(''));
 $('#rulesBtn').onclick=()=>modal(`<div class="rules"><h2>ルール・用語</h2>
 <h3>役の強さ</h3><ol class="formation-list"><li><b>ウェッジ</b>：同じ色で連続した数字。</li><li><b>ファランクス</b>：同じ数字。</li><li><b>バタリオン</b>：同じ色。</li><li><b>スカーミッシャー</b>：連続した数字。</li><li><b>ホスト</b>：上記以外。</li></ol><ul><li>上から順に強い役です。</li><li>同じ役なら数字合計が大きい側が上。</li><li>同じ役・同じ合計なら先に完成した側が上。</li></ul>
-<h3>戦術カード詳細</h3><ul><li><b>リーダー</b>：色・数字を自由に扱うワイルド。</li><li><b>援軍騎兵</b>：数字8・色自由。</li><li><b>盾兵</b>：数字1～3・色自由。</li><li><b>霧</b>：その旗は役を無視し、数字合計だけで比較。</li><li><b>泥濘</b>：その旗を3枚編成から4枚編成へ変更。</li><li><b>偵察</b>：カードを追加で確認・交換する戦術。</li><li><b>再配置</b>：自分の配置済みカード1枚を別の戦線へ移動。</li><li><b>脱走</b>：相手の配置済みカード1枚を捨てる。</li><li><b>裏切り</b>：相手の部隊カード1枚を自分側へ移す。</li><li>戦術カードは、自分の使用枚数が相手より最大1枚多いところまで使用可能。</li></ul>
+<h3>戦術カード詳細</h3><ul><li><b>リーダー</b>：色・数字を自由に扱うワイルド。各プレイヤー1枚まで使用可能。</li><li><b>援軍騎兵</b>：数字8・色自由。</li><li><b>盾兵</b>：数字1～3・色自由。</li><li><b>霧</b>：その旗は役を無視し、数字合計だけで比較。</li><li><b>泥濘</b>：その旗を3枚編成から4枚編成へ変更。</li><li><b>偵察</b>：部隊/戦術の山札から合計3枚引き、手札から2枚を選んで各山札の上へ戻す。</li><li><b>再配置</b>：自分の配置済みカード1枚を別の戦線へ移動。</li><li><b>脱走</b>：相手の配置済みカード1枚を捨てる。</li><li><b>裏切り</b>：相手の部隊カード1枚を自分側へ移す。</li><li>戦術カードは、自分の使用枚数が相手より最大1枚多いところまで使用可能。</li></ul>
 <h3>勝利条件</h3><ul><li>中央の9本のフラッグを争います。</li><li><b>隣接する3本</b>を連続で獲得すると勝利。</li><li>または場所を問わず<b>5本</b>獲得すると勝利。</li></ul>
 <h3>ターン</h3><ul><li>カードを1枚プレイ。</li><li>部隊山札または戦術山札から1枚ドロー。</li><li>相手の手番へ移ります。</li><li>獲得可能なフラッグは旗を押して宣言します。</li></ul>
 <h3>フラッグ獲得</h3><ul><li>双方完成時はフォーメーションを比較します。</li><li>相手が未完成でも、公開情報上どう完成しても逆転できない場合は獲得宣言できます。</li><li>相手の手札内容は判定材料にしません。</li></ul>
