@@ -1,5 +1,5 @@
 'use strict';
-const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_VERSION='v0.4.2';
+const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_VERSION='v0.4.3';
 const WORKER_ORIGIN=String(window.BATTLE_LINE_WORKER_ORIGIN||'').replace(/\/$/,'');
 const COMMON_PLAYER_NAME_KEY='boardgamePlayerName', ROOM_IDS=['room1','room2','room3','room4'];
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
@@ -25,7 +25,19 @@ function onState(){
  }
  if(state.status==='playing'&&state.gameSessionId&&commonNameSavedForSession!==state.gameSessionId){saveCommonNameOnActualStart(currentPlayerName);commonNameSavedForSession=state.gameSessionId}if(state.status==='lobby')renderLobby();else renderGame();}
 function me(){return state?.players?.find(p=>p.token===getToken(currentRoomId))} function opp(){const m=me();return state?.players?.find(p=>p.id!==m?.id)}
-function renderLobby(){screen('#lobby');$('#lobbyRoom').textContent=`ROOM ${ROOM_IDS.indexOf(currentRoomId)+1}`;$('#seats').innerHTML=(state.players||[]).map((p,i)=>`<p><b>${i+1}.</b> ${esc(p.name)} ${p.cpu?'（CPU Lv'+p.cpu+'）':''}${p.id===state.hostId?' ★HOST':''}</p>`).join('')||'<p>待機中</p>';const host=me()?.id===state.hostId;$('#hostSettings').style.opacity=host?'1':'.55';$('#startBtn').style.display=host?'block':'none';for(const [id,key] of [['tactics','tactics'],['claimRule','claimRule'],['first','first'],['cpu','cpuLevel']]){$('#'+id).value=String(state.settings?.[key]??(id==='tactics'?'true':id==='claimRule'?'normal':id==='first'?'random':'0'));$('#'+id).disabled=!host} }
+function renderLobby(){
+ screen('#lobby');
+ $('#lobbyRoom').textContent=`ROOM ${ROOM_IDS.indexOf(currentRoomId)+1}`;
+ $('#seats').innerHTML=(state.players||[]).map((p,i)=>`<div class="seat-card"><span class="seat-no">${i+1}</span><div><b>${esc(p.name)}</b><small>${p.cpu?'CPU Lv'+p.cpu:p.id===state.hostId?'HOST':'PLAYER'}</small></div>${p.id===state.hostId?'<span class="host-badge">HOST</span>':''}</div>`).join('')||'<div class="lobby-wait">対戦相手を待っています…</div>';
+ const host=me()?.id===state.hostId;
+ $('#hostSettings').classList.toggle('locked',!host);
+ $('#startBtn').style.display=host?'block':'none';
+ for(const [id,key] of [['tactics','tactics'],['claimRule','claimRule'],['first','first'],['cpu','cpuLevel']]){
+  const value=String(state.settings?.[key]??(id==='tactics'?'true':id==='claimRule'?'normal':id==='first'?'random':'0'));
+  $('#'+id).value=value;$('#'+id).disabled=!host;
+  $$(`[data-setting-ui="${id}"] button`).forEach(b=>{b.classList.toggle('active',b.dataset.value===value);b.disabled=!host});
+ }
+}
 function cardHtml(c,hand=false){if(!c)return '<div class="slot"></div>';if(c.kind==='troop')return `<div class="card ${c.color}" data-card="${c.id}"><span>${colorMark(c.color)}</span><b>${c.value}</b></div>`;return `<div class="card tactic" data-card="${c.id}" title="${esc(c.text||'')}"><small>戦術</small><b>${esc(c.name)}</b></div>`}
 function colorMark(c){return ({red:'赤',blue:'青',green:'緑',yellow:'黄',purple:'紫',orange:'橙'})[c]||c}
 function renderGame(){screen('#game');if(state.status!=='finished')resultDismissed=false;const m=me(),o=opp();if(!m)return;$('#oppInfo').innerHTML=`<b>${esc(o?.name||'CPU')}</b>　手札 ${o?.handCount??0}　⚑${o?.flags??0}`;$('#myInfo').innerHTML=`<b>${esc(m.name)}</b>　⚑${m.flags||0}　使用戦術 ${m.tacticsUsed||0}`;$('#phaseText').textContent=phaseLabel();
@@ -120,10 +132,11 @@ function showResult(force=false){
    <h2>${title}</h2>
    <p class="result-reason">${reason}</p>
    <div class="result-score"><div><span>${esc(me().name)}</span><b>⚑ ${me().flags}</b></div><em>VS</em><div><span>${esc(opp()?.name||'CPU')}</span><b>⚑ ${opp()?.flags||0}</b></div></div>
+   <div class="result-next-label">次の操作</div>
    <div class="result-actions">
-    <button id="rematchBtn" class="result-primary">再戦</button>
-    <button id="lobbyBtn" class="result-secondary">ロビーへ戻る</button>
-    <button id="boardBtn" class="result-ghost">盤面を見る</button>
+    <button id="rematchBtn" class="result-primary"><b>再戦する</b><span>同じメンバーでもう一度</span></button>
+    <button id="lobbyBtn" class="result-secondary"><b>ロビーへ戻る</b><span>設定・CPU・先攻を変更</span></button>
+    <button id="boardBtn" class="result-ghost">盤面を確認する</button>
    </div>
  </div>`);
  $('#boardBtn').onclick=()=>{resultDismissed=true;closeModal()};
@@ -133,7 +146,10 @@ function showResult(force=false){
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c])}
 $('#name').value=sessionStorage.getItem('battle-line-name-draft')??commonSavedName();$('#name').oninput=e=>sessionStorage.setItem('battle-line-name-draft',e.target.value);
 $('#leaveBtn').onclick=leaveCurrentRoom;$('#startBtn').onclick=()=>send('start');
-for(const [id,key] of [['tactics','tactics'],['claimRule','claimRule'],['first','first'],['cpu','cpuLevel']])$('#'+id).onchange=e=>send('settings',{key,value:id==='tactics'?e.target.value==='true':id==='cpu'?+e.target.value:e.target.value});
+for(const [id,key] of [['tactics','tactics'],['claimRule','claimRule'],['first','first'],['cpu','cpuLevel']]){
+ $('#'+id).onchange=e=>send('settings',{key,value:id==='tactics'?e.target.value==='true':id==='cpu'?+e.target.value:e.target.value});
+ $$(`[data-setting-ui="${id}"] button`).forEach(b=>b.onclick=()=>{if(b.disabled)return;const value=b.dataset.value;send('settings',{key,value:id==='tactics'?value==='true':id==='cpu'?+value:value})});
+}
 $('#troopDeck').onclick=()=>{if(state?.phase==='draw')send('draw',{deck:'troop'})};$('#tacticDeck').onclick=()=>{if(state?.phase==='draw')send('draw',{deck:'tactic'})};$('#historyBtn').onclick=()=>modal('<h2>ログ</h2>'+(state.history||[]).slice().reverse().map(x=>`<div class="log">${esc(x)}</div>`).join(''));
 $('#rulesBtn').onclick=()=>modal(`<div class="rules"><h2>ルール・用語</h2>
 <h3>役の強さ</h3><ol class="formation-list"><li><b>ウェッジ</b>：同じ色で連続した数字。</li><li><b>ファランクス</b>：同じ数字。</li><li><b>バタリオン</b>：同じ色。</li><li><b>スカーミッシャー</b>：連続した数字。</li><li><b>ホスト</b>：上記以外。</li></ol><ul><li>上から順に強い役です。</li><li>同じ役なら数字合計が大きい側が上。</li><li>同じ役・同じ合計なら先に完成した側が上。</li></ul>
