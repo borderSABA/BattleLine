@@ -1,5 +1,5 @@
 'use strict';
-const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_VERSION='v0.6.3';
+const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_VERSION='v0.6.4';
 const WORKER_ORIGIN=String(window.BATTLE_LINE_WORKER_ORIGIN||'').replace(/\/$/,'');
 const COMMON_PLAYER_NAME_KEY='boardgamePlayerName', ROOM_IDS=['room1','room2','room3','room4'];
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
@@ -46,13 +46,30 @@ function effectStatus(){
  const mud=[],fog=[];(state.flags||[]).forEach((f,i)=>{if(f.mud||f.effect==='泥濘')mud.push(i+1);if(f.fog||f.effect==='霧')fog.push(i+1)});
  return [mud.length?`泥濘${mud.join('・')}`:'',fog.length?`霧${fog.join('・')}`:''].filter(Boolean).join('　');
 }
+function hasLegalTroopPlay(m){
+ return (m.hand||[]).some(c=>c.kind==='troop'&&(state.flags||[]).some(f=>!f.ownerId&&(f.sides?.[m.seat]?.length||0)<(f.mud?4:3)));
+}
+function tacticPotentiallyUsable(m,c){
+ if(c.kind!=='tactic')return false;
+ const o=opp();if((m.tacticsUsed||0)>(o?.tacticsUsed||0))return false;
+ if(c.code==='leader'&&m.leaderUsed)return false;
+ if(['leader','cavalry','shield'].includes(c.code))return (state.flags||[]).some(f=>!f.ownerId&&(f.sides?.[m.seat]?.length||0)<(f.mud?4:3));
+ if(['fog','mud'].includes(c.code))return (state.flags||[]).some(f=>!f.ownerId&&!f[c.code]);
+ if(c.code==='scout')return (state.troopDeckCount||0)+(state.tacticDeckCount||0)>=3;
+ if(c.code==='deserter')return (state.flags||[]).some(f=>!f.ownerId&&(f.sides?.[1-m.seat]||[]).length);
+ if(c.code==='redeploy')return (state.flags||[]).some((f,i)=>!f.ownerId&&(f.sides?.[m.seat]||[]).length&&(state.flags||[]).some((d,j)=>j!==i&&!d.ownerId&&(d.sides?.[m.seat]?.length||0)<(d.mud?4:3)));
+ if(c.code==='traitor')return (state.flags||[]).some(f=>!f.ownerId&&(f.sides?.[1-m.seat]||[]).some(x=>x.kind==='troop'))&&(state.flags||[]).some(f=>!f.ownerId&&(f.sides?.[m.seat]?.length||0)<(f.mud?4:3));
+ return true;
+}
+function mustPass(m){return state.status==='playing'&&state.phase==='play'&&state.turnPlayerId===m.id&&!hasLegalTroopPlay(m)&&!(m.hand||[]).some(c=>tacticPotentiallyUsable(m,c))}
 function renderGame(){screen('#game');if(state.status!=='finished')resultDismissed=false;const m=me(),o=opp();if(!m)return;const effects=effectStatus();$('#oppInfo').innerHTML=`<b>${esc(o?.name||'CPU')}</b><span class="opp-flag">⚑${o?.flags??0}</span>${effects?`<span class="battle-effects">${esc(effects)}</span>`:''}<span class="opp-tactic">戦術${o?.tacticsUsed??0}</span><span class="opp-hand">手札${o?.handCount??0}</span>`;$('#myInfo').innerHTML=`<b>${esc(m.name)}</b>　⚑${m.flags||0}${effects?`　<span class="battle-effects">${esc(effects)}</span>`:''}　使用戦術 ${m.tacticsUsed||0}`;$('#phaseText').textContent=phaseLabel();
 const myTurn=state.turnPlayerId===m.id;
 $('#turnGuide').innerHTML=turnGuideHtml(myTurn);
-$('#finishedActions').classList.toggle('hidden',state.status!=='finished');$('#troopDeck b').textContent=state.troopDeckCount;$('#tacticDeck b').textContent=state.tacticDeckCount;$('#tacticDeck').style.display=state.settings.tactics?'block':'none';const deckReady=myTurn&&['draw','scoutDraw'].includes(state.phase);$('#troopDeck').classList.toggle('ready',deckReady);$('#tacticDeck').classList.toggle('ready',deckReady);renderBattle();$('#hand').innerHTML=(m.hand||[]).map(cardHtml).join('');$$('#hand .card').forEach(el=>{el.onclick=()=>selectCard(el.dataset.card);if(el.dataset.card===selectedCard)el.classList.add('selected')});const sc=m.hand?.find(x=>x.id===selectedCard),ub=$('#useTacticBtn');
+$('#finishedActions').classList.toggle('hidden',state.status!=='finished');$('#troopDeck b').textContent=state.troopDeckCount;$('#tacticDeck b').textContent=state.tacticDeckCount;$('#tacticDeck').style.display=state.settings.tactics?'block':'none';const deckReady=myTurn&&['draw','scoutDraw'].includes(state.phase);$('#troopDeck').classList.toggle('ready',deckReady);$('#tacticDeck').classList.toggle('ready',deckReady);renderBattle();$('#hand').innerHTML=(m.hand||[]).map(cardHtml).join('');$$('#hand .card').forEach(el=>{el.onclick=()=>selectCard(el.dataset.card);if(el.dataset.card===selectedCard)el.classList.add('selected')});const sc=m.hand?.find(x=>x.id===selectedCard),ub=$('#useTacticBtn'),passOnly=mustPass(m);
  if(state.phase==='scoutReturn'){ub.textContent='返却';ub.disabled=!(myTurn&&sc)}
  else if(state.phase==='scoutOrder'){ub.textContent='上に置く';ub.disabled=!(myTurn&&sc&&(state.scout?.pendingReturns||[]).some(x=>x.id===sc.id))}
- else{ub.textContent='使用';ub.disabled=!(myTurn&&state.phase==='play'&&sc?.kind==='tactic')}
+ else if(passOnly){ub.textContent='パス';ub.disabled=false}
+ else{ub.textContent='使用';ub.disabled=!(myTurn&&state.phase==='play'&&sc?.kind==='tactic'&&tacticPotentiallyUsable(m,sc))}
  ub.classList.toggle('ready',!ub.disabled);if(state.status==='finished'&&!resultDismissed)showResult()}
 function phaseLabel(){const m=me(),turn=state.turnPlayerId===m?.id?'あなた':'相手';if(state.status==='finished')return 'ゲーム終了';return `${turn}の手番 / ${state.phase==='play'?'カード配置':state.phase==='draw'?'カードを引く':'処理中'}`}
 function turnGuideHtml(myTurn){
@@ -99,7 +116,7 @@ function selectCard(id){
  if(tacticTarget)return toast('戦術処理中です。キャンセルしてから選び直してください');selectedCard=selectedCard===id?null:id;renderGame()
 }
 function playSelected(flag){const c=me().hand.find(x=>x.id===selectedCard);if(!c)return;if(c.kind==='tactic')return toast('戦術カードは「使用」を押してください');send('play',{cardId:selectedCard,flag});selectedCard=null}
-function useSelectedTactic(){if(state.turnPlayerId!==me()?.id||state.phase!=='play')return toast('今は戦術を使用できません');const c=me().hand.find(x=>x.id===selectedCard);if(!c||c.kind!=='tactic')return toast('使用する戦術カードを選択してください');if(c.code==='scout'){send('play',{cardId:c.id,flag:0});selectedCard=null;return}const stage=['deserter','redeploy','traitor'].includes(c.code)?'source':'targetFlag';tacticTarget={cardId:c.id,code:c.code,name:c.name,stage,sourceFlag:null,targetCardId:null};renderGame()}
+function useSelectedTactic(){if(state.turnPlayerId!==me()?.id||state.phase!=='play')return toast('今は戦術を使用できません');if(mustPass(me())){send('pass');selectedCard=null;return}const c=me().hand.find(x=>x.id===selectedCard);if(!c||c.kind!=='tactic')return toast('使用する戦術カードを選択してください');if(c.code==='scout'){send('play',{cardId:c.id,flag:0});selectedCard=null;return}const stage=['deserter','redeploy','traitor'].includes(c.code)?'source':'targetFlag';tacticTarget={cardId:c.id,code:c.code,name:c.name,stage,sourceFlag:null,targetCardId:null};renderGame()}
 function cancelTacticTarget(){tacticTarget=null;renderGame()}
 function validTacticTarget(fi,seat,c){if(!tacticTarget||state.flags[fi].ownerId||tacticTarget.stage!=='source')return false;if(tacticTarget.code==='deserter')return seat!==me().seat;if(tacticTarget.code==='redeploy')return seat===me().seat;if(tacticTarget.code==='traitor')return seat!==me().seat&&c.kind==='troop';return false}
 function destinationLegal(fi){const f=state.flags[fi];if(!f||f.ownerId)return false;if(tacticTarget?.code==='redeploy'&&fi===tacticTarget.sourceFlag)return false;return (f.sides[me().seat]||[]).length<(f.mud?4:3)}

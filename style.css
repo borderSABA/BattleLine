@@ -198,3 +198,6 @@ html,body{height:100%;overflow:hidden}#game.screen.active{height:100dvh;overflow
 .battle-effects{font-weight:900;color:#f0cf66;white-space:nowrap}
 @media(min-width:641px){.formation-role{font-size:13px!important;padding:3px 6px!important}}
 @media(max-width:640px){.formation-role{font-size:8px!important;padding:1px 3px!important}.battle-effects{font-size:.92em}}
+
+/* v0.6.4 pass-only state */
+#useTacticBtn.ready:not(:disabled){font-weight:900}
