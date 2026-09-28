@@ -1,5 +1,5 @@
 'use strict';
-const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_VERSION='v0.4.5';
+const GAME_ID='battle-line', GAME_NAME='バトルライン', MAX_PLAYERS=2, APP_VERSION='v0.4.6';
 const WORKER_ORIGIN=String(window.BATTLE_LINE_WORKER_ORIGIN||'').replace(/\/$/,'');
 const COMMON_PLAYER_NAME_KEY='boardgamePlayerName', ROOM_IDS=['room1','room2','room3','room4'];
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
@@ -53,7 +53,9 @@ function turnGuideHtml(myTurn){
 }
 function renderBattle(){
  const m=me();
- $('#battlefield').innerHTML=`<div class="side-label opponent-side">相手側</div><div class="side-label my-side">あなた側</div>`+state.flags.map((f,i)=>{
+ const firstFlag=state.flags[0],topSeat=m.seat===0?1:0,bottomSeat=m.seat===0?0:1;
+ const topLabel=topSeat===m.seat?'あなた側':'相手側',bottomLabel=bottomSeat===m.seat?'あなた側':'相手側';
+ $('#battlefield').innerHTML=`<div class="side-label top-side">${topLabel}</div><div class="side-label bottom-side">${bottomLabel}</div>`+state.flags.map((f,i)=>{
   const mine=f.sides[m.seat]||[],other=f.sides[1-m.seat]||[];
   const top=m.seat===0?other:mine,bottom=m.seat===0?mine:other;
   const topSeat=m.seat===0?1:0,bottomSeat=m.seat===0?0:1;

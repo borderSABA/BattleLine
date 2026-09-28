@@ -102,3 +102,23 @@ html,body{height:100%;overflow:hidden}#game.screen.active{height:100dvh;overflow
 #hand{height:56px;min-height:56px;padding:2px;gap:3px;overflow:hidden;justify-content:center;align-items:center}#hand .card{width:38px;height:50px;border-width:1px;border-radius:5px;box-sizing:border-box}
 #hand .card span{display:none}#hand .card b{font-size:20px}#hand .card.tactic{width:34px}#hand .card.tactic small{display:none}#hand .card.tactic b{font-size:10px;line-height:1;writing-mode:vertical-rl;text-orientation:upright;max-height:45px;overflow:hidden}
 #hand .card.selected{transform:translateY(-3px);outline-width:2px}}
+
+/* v0.4.6 mobile density / labels */
+.top-side{top:3px;background:#472b2f;color:#f2d7d7}.bottom-side{bottom:3px;background:#6b581d;color:#fff1ad}
+@media(max-width:640px){
+ #game .game-head{height:34px;min-height:34px}
+ #game .game-head>span.hidden{display:none}
+ #game .game-head{grid-template-columns:1fr auto!important}
+ #battlefield{padding:8px 2px 8px!important}
+ .lane{grid-template-rows:minmax(0,1fr) 30px minmax(0,1fr)!important}
+ .formation{justify-content:center!important}
+ .formation .card,.formation .slot{height:18px!important}
+ .formation .card.tactic{min-height:25px!important;max-height:38px!important}
+ .formation .card.tactic b{max-height:35px!important}
+ .side-label{font-size:7px!important;padding:1px 4px!important}.top-side{top:1px}.bottom-side{bottom:1px}
+ #drawArea{height:43px!important;min-height:43px!important;padding:3px!important;gap:8px!important}
+ #drawArea button{min-width:105px!important;min-height:37px!important;padding:7px 16px!important;font-size:14px!important;font-weight:900!important;border-radius:10px!important}
+ #myInfo{height:25px!important;min-height:25px!important;font-size:13px!important;line-height:25px!important;font-weight:700!important}
+ #myInfo b{font-size:14px!important}
+ #hand{height:55px!important;min-height:55px!important}
+}
