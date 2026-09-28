@@ -16,3 +16,5 @@
 .board-card.tactic-dim{opacity:.28;filter:grayscale(.55)}
 @keyframes tacticPulse{from{box-shadow:0 0 5px #f2cf66}to{box-shadow:0 0 18px #f2cf66}}
 #cancelTacticBtn{margin-left:8px;padding:4px 10px;background:#5b3030;color:#fff}
+
+.rules ul{margin:6px 0 14px;padding-left:1.4em}.rules li{margin:5px 0;line-height:1.55}.rules h3{margin:16px 0 6px}
