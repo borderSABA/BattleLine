@@ -176,3 +176,8 @@ html,body{height:100%;overflow:hidden}#game.screen.active{height:100dvh;overflow
  .formation{height:89px!important;min-height:89px!important;max-height:89px!important;justify-content:flex-start!important}
  .lane{grid-template-rows:89px 27px 89px!important;height:207px!important;min-height:207px!important}
 }
+
+/* v0.5.1: five-row fixed area; visible rows centered vertically */
+.reserve-slot{display:none!important}.formation{box-sizing:border-box!important;justify-content:center!important}
+@media(min-width:641px){.formation{height:207px!important;min-height:207px!important;max-height:207px!important;padding:0!important;gap:3px!important}.lane{grid-template-rows:207px 62px 207px!important;min-height:488px!important}}
+@media(max-width:640px){.formation{height:89px!important;min-height:89px!important;max-height:89px!important;padding:0!important;gap:1px!important;justify-content:center!important}.lane{grid-template-rows:89px 27px 89px!important;height:207px!important;min-height:207px!important}}
