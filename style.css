@@ -189,3 +189,12 @@ html,body{height:100%;overflow:hidden}#game.screen.active{height:100dvh;overflow
 
 /* v0.6.1 Scout return/order */
 #useTacticBtn.ready{cursor:pointer}
+
+/* v0.6.3 role/effect visibility */
+.formation{overflow:visible!important}
+.formation-role{position:absolute!important;left:50%!important;right:auto!important;transform:translateX(-50%);z-index:8;white-space:nowrap;background:rgba(10,14,22,.94)!important;border:1px solid rgba(255,255,255,.28);font-weight:900!important}
+.top-formation .formation-role{bottom:2px!important}
+.bottom-formation .formation-role{top:2px!important;bottom:auto!important}
+.battle-effects{font-weight:900;color:#f0cf66;white-space:nowrap}
+@media(min-width:641px){.formation-role{font-size:13px!important;padding:3px 6px!important}}
+@media(max-width:640px){.formation-role{font-size:8px!important;padding:1px 3px!important}.battle-effects{font-size:.92em}}
